@@ -26,7 +26,7 @@ type dataQueue struct {
 func ZipPack(dest string, source []string) error {
 	destFile, err := FileURINew(dest)
 	if err != nil {
-		return fmt.Errorf("buckets to be prefixed with s3://")
+		return fmt.Errorf("Invalid destination file format")
 	}
 
 	// FileGeneration -> Downloader -> Zip Adder -> Writer
@@ -35,30 +35,18 @@ func ZipPack(dest string, source []string) error {
 	reader := addToZip(zipQueue)
 
 	defer reader.Close()
-	wg := sync.WaitGroup{}
 
 	if destFile.Scheme == "s3" {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := uploadToS3(*destFile, reader); err != nil {
-				log.Fatal(err)
-			}
-		}()
+		if err := uploadToS3(*destFile, reader); err != nil {
+			return err
+		}
 	} else if destFile.Scheme == "file" {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			if err := uploadToLocal(*destFile, reader); err != nil {
-				log.Fatal(err)
-			}
-		}()
+		if err := uploadToLocal(*destFile, reader); err != nil {
+			return err
+		}
 	} else {
-		fmt.Println("ERROR unknown file destination")
-		os.Exit(1)
+		return fmt.Errorf("ERROR unknown file destination")
 	}
-
-	wg.Wait()
 
 	return nil
 }
